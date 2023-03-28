@@ -90,19 +90,44 @@ def input_setup(index):
     padding=6
     sub_ir_sequence = []
     sub_vi_sequence = []
+    # added sub_log_sequence
+    sub_log_sequence = []
+
+    #added f below
+    # input_f=(imread(data_log[index])-127.5)/127.5
+    # input_f=np.lib.pad(input_f,((padding,padding),(padding,padding)),'edge')
+    # w,h=input_f.shape
+    # input_f=input_f.reshape([w,h,1])
+
+    # log transformation
+    input_log = (imread(data_log[index]))
+    input_log = np.log(1 + input_log) / np.log(1+np.max(input_log))
+    # input_log = (input_log - np.min(input_log)) / (np.max(input_log) - np.min(input_log))
+    # input_log = (input_log - 127.5) / 127.5
+    input_log = np.lib.pad(input_log,((padding,padding),(padding,padding)),'edge')
+    w,h=input_log.shape
+    input_log=input_log.reshape([w,h,1])    
+    
     input_ir=(imread(data_ir[index])-127.5)/127.5
     input_ir=np.lib.pad(input_ir,((padding,padding),(padding,padding)),'edge')
     w,h=input_ir.shape
     input_ir=input_ir.reshape([w,h,1])
+    
     input_vi=(imread(data_vi[index])-127.5)/127.5
     input_vi=np.lib.pad(input_vi,((padding,padding),(padding,padding)),'edge')
     w,h=input_vi.shape
     input_vi=input_vi.reshape([w,h,1])
+    
+    #added sub_f below
+    sub_log_sequence.append(input_log)
     sub_ir_sequence.append(input_ir)
     sub_vi_sequence.append(input_vi)
+    #added train_data_f below
+    train_data_f = np.asarray(sub_log_sequence)
     train_data_ir= np.asarray(sub_ir_sequence)
     train_data_vi= np.asarray(sub_vi_sequence)
-    return train_data_ir,train_data_vi
+
+    return train_data_f,train_data_ir,train_data_vi
 
 for idx_num in range(4,5):
   num_epoch=idx_num
@@ -114,9 +139,14 @@ for idx_num in range(4,5):
           images_ir = tf.placeholder(tf.float32, [1,None,None,None], name='images_ir')
       with tf.name_scope('VI_input'):
           images_vi = tf.placeholder(tf.float32, [1,None,None,None], name='images_vi')
+        #added below
+      with tf.name_scope('LOG_input'):
+          images_log = tf.placeholder(tf.float32, [1,None,None,None], name='images_log')
+          
       with tf.name_scope('input'):
-          input_image_ir =tf.concat([images_ir,images_ir,images_vi],axis=-1)
-          input_image_vi =tf.concat([images_vi,images_vi,images_ir],axis=-1)
+          # changed below added images_log
+          input_image_ir =tf.concat([images_ir,images_log,images_vi],axis=-1)
+          input_image_vi =tf.concat([images_vi,images_log,images_ir],axis=-1)
 
       with tf.name_scope('fusion'):
           fusion_image=fusion_model(input_image_ir,input_image_vi)
@@ -125,12 +155,17 @@ for idx_num in range(4,5):
       with tf.Session() as sess:
           init_op=tf.global_variables_initializer()
           sess.run(init_op)
+          # i've changed the code below
           data_ir=prepare_data('Test_ir')
           data_vi=prepare_data('Test_vi')
+          # added code below
+          data_log = prepare_data('Test_ir')
           for i in range(len(data_ir)):
               start=time.time()
-              train_data_ir,train_data_vi=input_setup(i)
-              result =sess.run(fusion_image,feed_dict={images_ir: train_data_ir,images_vi: train_data_vi})
+              #changed the code below added train data_f
+              train_data_log,train_data_ir,train_data_vi=input_setup(i)
+              #changed the code below added images_f
+              result =sess.run(fusion_image,feed_dict={images_log:train_data_log,images_ir: train_data_ir,images_vi: train_data_vi})
               result=result*127.5+127.5
               result = result.squeeze()
               image_path = os.path.join(os.getcwd(), 'result','epoch'+str(num_epoch))
